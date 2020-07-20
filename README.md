@@ -11,6 +11,46 @@ this file.
 This change is mainly to solve the problem of inaccurate CPU binding check in the docker environment.
 The current change is silly, but for My current test is very useful**
 
+Dockerhub  [AFL-TOOLS v2.57b](https://hub.docker.com/r/tyrone2015/afl-tools)
+
+
+```
+  -c            - Manually specify the CPU number in the Docker environment
+```
+
+
+```
+
+afl-fuzz [ options ] -- /path/to/fuzzed_app [ ... ]
+
+Required parameters:
+
+  -i dir        - input directory with test cases
+  -o dir        - output directory for fuzzer findings
+
+Execution control settings:
+
+  -f file       - location read by the fuzzed program (stdin)
+  -t msec       - timeout for each run (auto-scaled, 50-1000 ms)
+  -m megs       - memory limit for child process (50 MB)
+  -Q            - use binary-only instrumentation (QEMU mode)
+  -c            - Manually specify the CPU number in the Docker environment
+
+Fuzzing behavior settings:
+
+  -d            - quick & dirty mode (skips deterministic steps)
+  -n            - fuzz without instrumentation (dumb mode)
+  -x dir        - optional fuzzer dictionary (see README)
+
+Other stuff:
+
+  -T text       - text banner to show on the screen
+  -M / -S id    - distributed mode (see parallel_fuzzing.txt)
+  -C            - crash exploration mode (the peruvian rabbit thing)
+
+For additional tips, please consult /usr/local/share/doc/afl/README.
+```
+
 
 ## 1) Challenges of guided fuzzing
 

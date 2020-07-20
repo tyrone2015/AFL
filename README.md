@@ -7,9 +7,9 @@ Originally developed by Michal Zalewski <lcamtuf@google.com>.
 See [QuickStartGuide.txt](docs/QuickStartGuide.txt) if you don't have time to read
 this file.
 
-I made a simple modification to afl-fuzz.c to allow the tool to manually specify the CPU number.
+**I made a simple modification to afl-fuzz.c to allow the tool to manually specify the CPU number.
 This change is mainly to solve the problem of inaccurate CPU binding check in the docker environment.
-The current change is silly, but for My current test is very useful
+The current change is silly, but for My current test is very useful**
 
 
 ## 1) Challenges of guided fuzzing

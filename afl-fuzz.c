@@ -101,6 +101,7 @@ EXP_ST u8 *in_dir,                    /* Input directory with test cases  */
           *doc_path,                  /* Path to documentation dir        */
           *target_path,               /* Path to target binary            */
           *orig_cmdline;              /* Original command line            */
+EXP_ST u32 cpu_number;                /* Cpu index number                 */
 
 EXP_ST u32 exec_tmout = EXEC_TIMEOUT; /* Configurable exec timeout (ms)   */
 static u32 hang_tmout = EXEC_TIMEOUT; /* Timeout used for hang det (ms)   */
@@ -423,72 +424,82 @@ static void bind_to_free_cpu(void) {
     return;
 
   }
+  /* If the CPU  is specified manually, no CPU checking is done
+  */
+  if (cpu_number){
 
-  d = opendir("/proc");
-
-  if (!d) {
-
-    WARNF("Unable to access /proc - can't scan for free CPU cores.");
-    return;
+    OKF("Skip the CPU check and use manual Settings");
+    i=cpu_number;
 
   }
+  else{
+    
+    d = opendir("/proc");
 
-  ACTF("Checking CPU core loadout...");
+    if (!d) {
 
-  /* Introduce some jitter, in case multiple AFL tasks are doing the same
-     thing at the same time... */
+      WARNF("Unable to access /proc - can't scan for free CPU cores.");
+      return;
 
-  usleep(R(1000) * 250);
-
-  /* Scan all /proc/<pid>/status entries, checking for Cpus_allowed_list.
-     Flag all processes bound to a specific CPU using cpu_used[]. This will
-     fail for some exotic binding setups, but is likely good enough in almost
-     all real-world use cases. */
-
-  while ((de = readdir(d))) {
-
-    u8* fn;
-    FILE* f;
-    u8 tmp[MAX_LINE];
-    u8 has_vmsize = 0;
-
-    if (!isdigit(de->d_name[0])) continue;
-
-    fn = alloc_printf("/proc/%s/status", de->d_name);
-
-    if (!(f = fopen(fn, "r"))) {
-      ck_free(fn);
-      continue;
     }
 
-    while (fgets(tmp, MAX_LINE, f)) {
+    ACTF("Checking CPU core loadout...");
 
-      u32 hval;
+    /* Introduce some jitter, in case multiple AFL tasks are doing the same
+      thing at the same time... */
 
-      /* Processes without VmSize are probably kernel tasks. */
+    usleep(R(1000) * 250);
 
-      if (!strncmp(tmp, "VmSize:\t", 8)) has_vmsize = 1;
+    /* Scan all /proc/<pid>/status entries, checking for Cpus_allowed_list.
+      Flag all processes bound to a specific CPU using cpu_used[]. This will
+      fail for some exotic binding setups, but is likely good enough in almost
+      all real-world use cases. */
 
-      if (!strncmp(tmp, "Cpus_allowed_list:\t", 19) &&
-          !strchr(tmp, '-') && !strchr(tmp, ',') &&
-          sscanf(tmp + 19, "%u", &hval) == 1 && hval < sizeof(cpu_used) &&
-          has_vmsize) {
+    while ((de = readdir(d))) {
 
-        cpu_used[hval] = 1;
-        break;
+      u8* fn;
+      FILE* f;
+      u8 tmp[MAX_LINE];
+      u8 has_vmsize = 0;
+
+      if (!isdigit(de->d_name[0])) continue;
+
+      fn = alloc_printf("/proc/%s/status", de->d_name);
+
+      if (!(f = fopen(fn, "r"))) {
+        ck_free(fn);
+        continue;
+      }
+
+      while (fgets(tmp, MAX_LINE, f)) {
+
+        u32 hval;
+
+        /* Processes without VmSize are probably kernel tasks. */
+
+        if (!strncmp(tmp, "VmSize:\t", 8)) has_vmsize = 1;
+
+        if (!strncmp(tmp, "Cpus_allowed_list:\t", 19) &&
+            !strchr(tmp, '-') && !strchr(tmp, ',') &&
+            sscanf(tmp + 19, "%u", &hval) == 1 && hval < sizeof(cpu_used) &&
+            has_vmsize) {
+
+          cpu_used[hval] = 1;
+          break;
+
+        }
 
       }
 
+      ck_free(fn);
+      fclose(f);
+
     }
 
-    ck_free(fn);
-    fclose(f);
+    closedir(d);
 
-  }
-
-  closedir(d);
-
-  for (i = 0; i < cpu_core_count; i++) if (!cpu_used[i]) break;
+    for (i = 0; i < cpu_core_count; i++) if (!cpu_used[i]) break;
+    }
 
   if (i == cpu_core_count) {
 
@@ -7107,7 +7118,8 @@ static void usage(u8* argv0) {
        "  -f file       - location read by the fuzzed program (stdin)\n"
        "  -t msec       - timeout for each run (auto-scaled, 50-%u ms)\n"
        "  -m megs       - memory limit for child process (%u MB)\n"
-       "  -Q            - use binary-only instrumentation (QEMU mode)\n\n"     
+       "  -Q            - use binary-only instrumentation (QEMU mode)\n"     
+       "  -c            - Manually specify the CPU number in the Docker environment\n\n"     
  
        "Fuzzing behavior settings:\n\n"
 
@@ -7776,10 +7788,18 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:Q")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:c:Q")) > 0)
 
     switch (opt) {
 
+      case 'c': 
+        if (cpu_number)FATAL("Multiple -c options not supported");
+
+        cpu_number=atoi(optarg);
+
+        OKF("Use CPU %d", cpu_number);
+        
+        break;
       case 'i': /* input dir */
 
         if (in_dir) FATAL("Multiple -i options not supported");
